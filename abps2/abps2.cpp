@@ -25,14 +25,14 @@ void saveAsBitmap(const Eigen::VectorXd& x, int n, const char* filename);
 bool isInside(const std::vector<Point>& polygon, const Point& p);
 const std::vector<double> complicatedPolygon = 
 {
-0.3, 0.3,0,
-0.6, 0.3, 0,
-0.5, 0.6, 0
+0.33333, 0.333333,0,
+0.666666, 0.333333, 0,
+0.5, 0.6666666, 0
 };
 
 int main()
 {
-	constexpr int n = 300;  // size of the image
+	constexpr int n = 600;  // size of the image
 	constexpr int m = n * n;  // number of unknows (=number of pixels)
 
 					// Assembly:
@@ -50,6 +50,9 @@ int main()
 	buildProblem(coefficients, b, n, boundary);
 	SpMat A(m, m);
 	A.setFromTriplets(coefficients.begin(), coefficients.end());
+
+	// uncomment this for true 
+	/* 
 	for (int j = 0; j < n; ++j)
 	{
 		for (int i = 0; i < n; ++i)
@@ -60,7 +63,7 @@ int main()
 
 		}
 	}
-
+	*/
 	
 	SpMat B(m, m);
 	B.setIdentity();
