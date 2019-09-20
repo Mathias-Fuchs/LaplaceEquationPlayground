@@ -10,45 +10,87 @@
 
 typedef Eigen::SparseMatrix<double> SpMat; // declares a column-major sparse matrix type of double
 typedef Eigen::Triplet<double> T;
+#define INF 10000 
 
 struct Point
 {
 	int x;
 	int y;
-	Point(int x, int y):x(x), y(y){}
+	Point(int x, int y) :x(x), y(y) {}
 };
 
-void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n, const Eigen::VectorXd& boundary, const std::vector<Point> polygon);
-void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs, Eigen::VectorXd& b, const Eigen::VectorXd& boundary, const std::vector<Point> polygon);
+void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n, const Eigen::VectorXd& boundary);
+void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs, Eigen::VectorXd& b, const Eigen::VectorXd& boundary);
 void saveAsBitmap(const Eigen::VectorXd& x, int n, const char* filename);
 bool isInside(const std::vector<Point>& polygon, const Point& p);
+const std::vector<double> complicatedPolygon = 
+{
+0.3, 0.3,0,
+0.6, 0.3, 0,
+0.5, 0.6, 0
+};
 
 int main()
 {
-	constexpr int n = 400;  // size of the image
+	constexpr int n = 300;  // size of the image
 	constexpr int m = n * n;  // number of unknows (=number of pixels)
-	
+
 					// Assembly:
 	std::vector<T> coefficients;            // list of non-zeros coefficients
 	Eigen::VectorXd b(m);                   // the right hand side-vector resulting from the constraints
 	Eigen::VectorXd boundary(n); boundary.setZero(); //  = Eigen::ArrayXd::LinSpaced(n, 0, 2 * M_PI).sin().pow(2);
 	std::vector<Point> polygon;
-	polygon.push_back(Point(n / 3, n / 3));
-	polygon.push_back(Point(2 * n / 3, n / 3));
-	polygon.push_back(Point(n / 2, 2 * n / 3));
+	for (auto d = complicatedPolygon.begin(); d != complicatedPolygon.end();) {
+		double x = *d++;
+		double y = *d++;
+		double z = *d++;
+		polygon.push_back(Point((int)(n * x), (int)(n * y)));
+	}
 
-	buildProblem(coefficients, b, n, boundary, polygon);
+	buildProblem(coefficients, b, n, boundary);
 	SpMat A(m, m);
 	A.setFromTriplets(coefficients.begin(), coefficients.end());
+	for (int j = 0; j < n; ++j)
+	{
+		for (int i = 0; i < n; ++i)
+		{
+			if (isInside(polygon, Point(i, j))) {
+				b(i + j * n) = 1.0;
+			}
+
+		}
+	}
+
+	
+	SpMat B(m, m);
+	B.setIdentity();
+	Eigen::VectorXd c(m); 
+	for (int j = 0; j < n; ++j)
+	{
+		for (int i = 0; i < n; ++i)
+		{
+			if (isInside(polygon, Point(i, j))) {
+				c(i + j * n) = 1.0;
+				(B.diagonal())(i + j * n) = 1.0;
+			}
+			else {
+				(B.diagonal())(i + j * n) = 0;
+			}
+		}
+	}
+	
+	auto C = A * A + B * A + A * B + B;
+	auto d = A * b + c;
+	
 	// Solving:
-	Eigen::SimplicialCholesky<SpMat> chol(A);  // performs a Cholesky factorization of A
-	Eigen::VectorXd x = chol.solve(b);         // use the factorization to solve for the given right hand side
+	Eigen::SimplicialCholesky<SpMat> chol(C);  // performs a Cholesky factorization of A
+	Eigen::VectorXd x = chol.solve(d);         // use the factorization to solve for the given right hand side
 	// Export the result to a file:
 	saveAsBitmap(x, n, "x.bmp");
 	return 0;
 }
 
-void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n, const Eigen::VectorXd& boundary, const std::vector<Point> polygon)
+void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n, const Eigen::VectorXd& boundary)
 {
 	b.setZero();
 	for (int j = 0; j < n; ++j)
@@ -56,36 +98,36 @@ void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n, const
 		for (int i = 0; i < n; ++i)
 		{
 			int id = i + j * n;
-			insertCoefficient(id, i - 1, j, -1, coefficients, b, boundary, polygon);
-			insertCoefficient(id, i + 1, j, -1, coefficients, b, boundary, polygon);
-			insertCoefficient(id, i, j - 1, -1, coefficients, b, boundary, polygon);
-			insertCoefficient(id, i, j + 1, -1, coefficients, b, boundary, polygon);
-			insertCoefficient(id, i, j, 4, coefficients, b, boundary, polygon);
+			insertCoefficient(id, i - 1, j, -1, coefficients, b, boundary);
+			insertCoefficient(id, i + 1, j, -1, coefficients, b, boundary);
+			insertCoefficient(id, i, j - 1, -1, coefficients, b, boundary);
+			insertCoefficient(id, i, j + 1, -1, coefficients, b, boundary);
+			insertCoefficient(id, i, j, 4, coefficients, b, boundary);
 		}
 	}
 }
 
 
-void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs,
-	Eigen::VectorXd& b, const Eigen::VectorXd& boundary, const std::vector<Point> polygon)
+static inline void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs,
+	Eigen::VectorXd& b, const Eigen::VectorXd& boundary)
 {
 	int n = int(boundary.size());
 	int id1 = i + j * n;
 	if (i == -1 || i == n) b(id) -= w * boundary(j); // constrained coefficient
 	else  if (j == -1 || j == n) b(id) -= w * boundary(i); // constrained coefficient
 	else  coeffs.push_back(T(id, id1, w));              // unknown coefficient
-	if (isInside(polygon, Point(i, j))) b(id) += 1.0;
+
 }
 
 void saveAsBitmap(const Eigen::VectorXd& x, int n, const char* filename)
 {
 	double min = x.minCoeff();
 	double max = x.maxCoeff();
-	auto data = std::vector<unsigned char>(3 * n * n);
+	std::vector<unsigned char> data(3 * n * n);
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			double value = (x(i * n + j) - min) / (max-min);
-			double r = abs(sin(value));
+			double value = (x(i * n + j) - min) / (max - min);
+			double r = (double)(((int)(13 * value)) & 1);
 			double g = abs(cos(value)) / 20;
 			double b = abs(cos(value) * sin(value));
 			data[3 * (i * n + j)] = (unsigned int)(r * 254);
@@ -98,8 +140,7 @@ void saveAsBitmap(const Eigen::VectorXd& x, int n, const char* filename)
 
 // from  https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/ 
 
-#define INF 10000 
-bool onSegment(Point p, Point q, Point r)
+static inline bool onSegment(const Point& p, const Point& q, const Point& r)
 {
 	if (q.x <= std::max(p.x, r.x) && q.x >= std::min(p.x, r.x) &&
 		q.y <= std::max(p.y, r.y) && q.y >= std::min(p.y, r.y))
@@ -107,7 +148,7 @@ bool onSegment(Point p, Point q, Point r)
 	return false;
 }
 
-int orientation(Point p, Point q, Point r)
+static inline int orientation(const Point& p, const Point& q, const Point& r)
 {
 	int val = (q.y - p.y) * (r.x - q.x) -
 		(q.x - p.x) * (r.y - q.y);
@@ -116,7 +157,7 @@ int orientation(Point p, Point q, Point r)
 	return (val > 0) ? 1 : 2; // clock or counterclock wise 
 }
 
-bool doIntersect(Point p1, Point q1, Point p2, Point q2)
+static inline bool doIntersect(const Point& p1, const Point& q1, const Point& p2, const Point& q2)
 {
 	// Find the four orientations needed for general and 
 	// special cases 
@@ -145,7 +186,7 @@ bool doIntersect(Point p1, Point q1, Point p2, Point q2)
 	return false; // Doesn't fall in any of the above cases 
 }
 
-bool isInside(const std::vector<Point>& polygon, const Point& p)
+static inline bool isInside(const std::vector<Point>& polygon, const Point& p)
 {
 	int n = polygon.size();
 	// There must be at least 3 vertices in polygon[] 
