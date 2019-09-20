@@ -51,7 +51,7 @@ int main()
 	SpMat A(m, m);
 	A.setFromTriplets(coefficients.begin(), coefficients.end());
 
-	// uncomment this for true 
+	// uncomment this for true Laplace solver proper
 	/* 
 	for (int j = 0; j < n; ++j)
 	{
