@@ -20,9 +20,9 @@ struct Point
 };
 
 void buildProblem(std::vector<T>& coefficients, Eigen::VectorXd& b, int n, const Eigen::VectorXd& boundary);
-void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs, Eigen::VectorXd& b, const Eigen::VectorXd& boundary);
+static inline void insertCoefficient(int id, int i, int j, double w, std::vector<T>& coeffs, Eigen::VectorXd& b, const Eigen::VectorXd& boundary);
 void saveAsBitmap(const Eigen::VectorXd& x, int n, const char* filename);
-bool isInside(const std::vector<Point>& polygon, const Point& p);
+static inline bool isInside(const std::vector<Point>& polygon, const Point& p);
 const std::vector<double> complicatedPolygon = 
 {
 0.33333, 0.333333,0,
@@ -52,7 +52,7 @@ int main()
 	A.setFromTriplets(coefficients.begin(), coefficients.end());
 
 	// uncomment this for true Laplace solver proper
-	/* 
+	 
 	for (int j = 0; j < n; ++j)
 	{
 		for (int i = 0; i < n; ++i)
@@ -63,7 +63,7 @@ int main()
 
 		}
 	}
-	*/
+	
 	
 	SpMat B(m, m);
 	B.setIdentity();
